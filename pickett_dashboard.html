@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Interactive Pickett Plot Dashboard</title>
+
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        background: #f4f6f8;
+    }
+    header {
+        background: #1f3c88;
+        color: white;
+        padding: 12px 20px;
+        font-size: 20px;
+    }
+    .container {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 10px;
+        padding: 10px;
+    }
+    .controls {
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        box-shadow: 0 0 6px rgba(0,0,0,0.1);
+    }
+    .controls h3 {
+        margin-top: 0;
+        color: #1f3c88;
+    }
+    label {
+        font-size: 14px;
+        font-weight: bold;
+    }
+    input[type=range] {
+        width: 100%;
+    }
+    .value {
+        font-size: 13px;
+        color: #333;
+        margin-bottom: 10px;
+    }
+    .plot {
+        background: white;
+        border-radius: 6px;
+        box-shadow: 0 0 6px rgba(0,0,0,0.1);
+        padding: 5px;
+    }
+    button {
+        margin-top: 8px;
+        width: 100%;
+        padding: 8px;
+        background: #1f3c88;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    button:hover {
+        background: #163172;
+    }
+</style>
+</head>
+
+<body>
+
+<header>Interactive Pickett Plot Dashboard</header>
+
+<div class="container">
+
+<div class="controls">
+    <h3>Archie Parameters</h3>
+
+    <label>a (Tortuosity)</label>
+    <input type="range" min="0.5" max="2" step="0.05" value="1" id="a">
+    <div class="value">a = <span id="aVal">1</span></div>
+
+    <label>m (Cementation)</label>
+    <input type="range" min="1.5" max="3" step="0.05" value="2" id="m">
+    <div class="value">m = <span id="mVal">2</span></div>
+
+    <label>n (Saturation)</label>
+    <input type="range" min="1.5" max="3" step="0.05" value="2" id="n">
+    <div class="value">n = <span id="nVal">2</span></div>
+
+    <label>Rw (Ohm·m)</label>
+    <input type="range" min="0.02" max="0.5" step="0.01" value="0.08" id="rw">
+    <div class="value">Rw = <span id="rwVal">0.08</span></div>
+
+    <h3>Data Options</h3>
+    <input type="file" id="fileInput" accept=".csv">
+    <button onclick="loadDemoData()">Load Demo Data</button>
+</div>
+
+<div class="plot">
+    <div id="pickettPlot" style="height: 600px;"></div>
+</div>
+
+</div>
+
+<script>
+let porosity = [];
+let rt = [];
+
+function updateValues() {
+    aVal.innerText = a.value;
+    mVal.innerText = m.value;
+    nVal.innerText = n.value;
+    rwVal.innerText = rw.value;
+    plotPickett();
+}
+
+[a, m, n, rw].forEach(slider => slider.addEventListener("input", updateValues));
+
+function plotPickett() {
+    if (porosity.length === 0) return;
+
+    const aVal = parseFloat(a.value);
+    const mVal = parseFloat(m.value);
+    const nVal = parseFloat(n.value);
+    const rwVal = parseFloat(rw.value);
+
+    const swLines = [1.0, 0.6, 0.4, 0.2];
+    const phi = [];
+    for (let i = 0.03; i <= 0.4; i += 0.005) phi.push(i);
+
+    let swTraces = swLines.map(sw => {
+        let rtLine = phi.map(p =>
+            (aVal * rwVal) / (Math.pow(p, mVal) * Math.pow(sw, nVal))
+        );
+        return {
+            x: phi,
+            y: rtLine,
+            mode: 'lines',
+            name: `Sw = ${sw}`,
+            line: { dash: 'dot' }
+        };
+    });
+
+    const dataTrace = {
+        x: porosity,
+        y: rt,
+        mode: 'markers',
+        name: 'Data',
+        marker: { size: 8, color: 'red' }
+    };
+
+    const layout = {
+        title: 'Pickett Plot (Log-Log)',
+        xaxis: { title: 'Porosity (φ)', type: 'log' },
+        yaxis: { title: 'Resistivity Rt (Ohm·m)', type: 'log' },
+        legend: { orientation: 'h' }
+    };
+
+    Plotly.newPlot('pickettPlot', [dataTrace, ...swTraces], layout);
+}
+
+function loadDemoData() {
+    porosity = [0.08,0.1,0.12,0.15,0.18,0.22,0.25,0.28];
+    rt = [80,40,25,15,9,6,4,3];
+    plotPickett();
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const rows = event.target.result.split('\n').slice(1);
+        porosity = [];
+        rt = [];
+        rows.forEach(r => {
+            const cols = r.split(',');
+            if (cols.length >= 2) {
+                porosity.push(parseFloat(cols[0]));
+                rt.push(parseFloat(cols[1]));
+            }
+        });
+        plotPickett();
+    };
+    reader.readAsText(file);
+});
+
+loadDemoData();
+</script>
+
+</body>
+</html>
